@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comm Sheet Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c1116;
+    --panel:#131a22;
+    --panel-2:#0f151b;
+    --line:#212b35;
+    --line-soft:#1a232c;
+    --text:#e7edf2;
+    --text-dim:#8ba0b3;
+    --text-faint:#516576;
+    --amber:#f2a93b;
+    --green:#39d98a;
+    --red:#ef5b6b;
+    --cyan:#4fd1e0;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --display: 'Space Grotesk', ui-sans-serif, system-ui;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 500px at 15% -10%, rgba(79,209,224,0.06), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(242,169,59,0.05), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--display);
+    padding:28px 20px 80px;
+    min-height:100vh;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+
+  /* header */
+  .header{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:26px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:20px;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--cyan);text-transform:uppercase;margin:0 0 8px;}
+  h1{font-size:28px;margin:0;font-weight:600;letter-spacing:-0.01em;}
+  .sub{color:var(--text-dim);font-size:13.5px;margin-top:6px;max-width:520px;line-height:1.5;}
+  .grid-indicator{display:flex;gap:2px;align-items:flex-end;height:26px;}
+  .grid-indicator span{width:4px;background:var(--cyan);opacity:.35;border-radius:1px;animation:pulse 2.4s ease-in-out infinite;}
+  .grid-indicator span:nth-child(1){height:40%;animation-delay:0s}
+  .grid-indicator span:nth-child(2){height:70%;animation-delay:.2s}
+  .grid-indicator span:nth-child(3){height:100%;animation-delay:.4s}
+  .grid-indicator span:nth-child(4){height:55%;animation-delay:.6s}
+  .grid-indicator span:nth-child(5){height:85%;animation-delay:.8s}
+  @keyframes pulse{0%,100%{opacity:.25}50%{opacity:.9}}
+
+  /* DG toggle */
+  .dg-toggle{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:22px;}
+  .dg-toggle button{
+    font-family:var(--mono);font-size:12.5px;letter-spacing:.04em;
+    background:transparent;border:none;color:var(--text-faint);
+    padding:9px 18px;border-radius:7px;cursor:pointer;transition:.15s;
+  }
+  .dg-toggle button.active{background:var(--panel);color:var(--text);box-shadow:0 0 0 1px var(--line);}
+  .dg-toggle button.active.dg1{color:var(--cyan);}
+  .dg-toggle button.active.dg2{color:var(--amber);}
+  .dg-toggle .meta{font-size:10.5px;color:var(--text-faint);padding:0 10px;align-self:center;font-family:var(--mono);}
+
+  /* upload cards */
+  .section-label{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--text-faint);text-transform:uppercase;margin:26px 0 12px;display:flex;align-items:center;gap:10px;}
+  .section-label::after{content:'';flex:1;height:1px;background:var(--line);}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;
+    transition:.15s; position:relative; overflow:hidden;
+  }
+  .card:hover{border-color:#2c3947;}
+  .card.filled{border-color:rgba(57,217,138,0.35); background:linear-gradient(180deg, rgba(57,217,138,0.05), transparent 40%), var(--panel);}
+  .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .card-title{font-size:14px;font-weight:600;}
+  .card-tag{font-family:var(--mono);font-size:9.5px;color:var(--text-faint);border:1px solid var(--line);border-radius:5px;padding:2px 6px;white-space:nowrap;}
+  .card-desc{font-size:12px;color:var(--text-dim);margin-top:6px;line-height:1.5;}
+  .card-file{margin-top:12px;}
+  .card-file input{display:none;}
+  .drop{
+    display:flex;align-items:center;gap:8px;
+    font-family:var(--mono);font-size:11.5px;color:var(--text-faint);
+    border:1px dashed var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;
+  }
+  .drop:hover{border-color:var(--cyan);color:var(--cyan);}
+  .filled .drop{border-style:solid;border-color:rgba(57,217,138,0.4);color:var(--green);}
+  .drop svg{flex-shrink:0;}
+  .filename{font-family:var(--mono);font-size:10.5px;color:var(--text-dim);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  /* controls row */
+  .controls{display:flex;align-items:flex-end;gap:16px;margin-top:26px;flex-wrap:wrap;}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field label{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--text-faint);text-transform:uppercase;}
+  .field input[type=date]{
+    background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text);
+    padding:9px 10px;font-family:var(--mono);font-size:13px;
+  }
+  .go-btn{
+    margin-left:auto;
+    background:var(--cyan);color:#04262b;border:none;border-radius:8px;
+    font-family:var(--display);font-weight:600;font-size:14px;
+    padding:13px 26px;cursor:pointer;transition:.15s;
+  }
+  .go-btn:hover{filter:brightness(1.08);}
+  .go-btn:disabled{background:var(--line);color:var(--text-faint);cursor:not-allowed;filter:none;}
+
+  /* log */
+  .log-panel{
+    margin-top:22px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;
+    font-family:var(--mono);font-size:12px;color:var(--text-dim);
+    max-height:220px;overflow-y:auto;padding:14px 16px;display:none;
+  }
+  .log-panel.visible{display:block;}
+  .log-line{padding:2px 0;display:flex;gap:10px;}
+  .log-line .t{color:var(--text-faint);flex-shrink:0;}
+  .log-line.ok .msg{color:var(--green);}
+  .log-line.err .msg{color:var(--red);}
+
+  /* results */
+  .results{margin-top:22px;display:none;}
+  .results.visible{display:block;}
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;}
+  .stat .num{font-family:var(--mono);font-size:24px;font-weight:600;}
+  .stat .lbl{font-size:11px;color:var(--text-faint);margin-top:4px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;}
+  .stat.comm .num{color:var(--green);}
+  .stat.noncomm .num{color:var(--amber);}
+  .stat.never .num{color:var(--red);}
+  .download-btn{
+    display:inline-flex;align-items:center;gap:8px;
+    background:var(--green);color:#062015;border:none;border-radius:8px;
+    font-family:var(--display);font-weight:600;font-size:14px;padding:13px 22px;cursor:pointer;
+  }
+  .download-btn:hover{filter:brightness(1.08);}
+  .note{font-size:11.5px;color:var(--text-faint);margin-top:10px;line-height:1.6;max-width:600px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div>
+      <p class="eyebrow">Smart Metering &middot; Comm Status</p>
+      <h1>Comm Sheet Builder</h1>
+      <p class="sub">Upload the meter master + routing/DP exports and generate the daily communication status sheet — same columns, same logic, every time.</p>
+    </div>
+    <div class="grid-indicator"><span></span><span></span><span></span><span></span><span></span></div>
+  </div>
+
+  <div class="dg-toggle" id="dgToggle">
+    <button class="active dg1" data-dg="dg1">DG-1 &nbsp;·&nbsp; DSMSS</button>
+    <button class="dg2" data-dg="dg2">DG-2 &nbsp;·&nbsp; DSRK / DTRK</button>
+    <span class="meta" id="dgMeta">Manufacturer: KIMBAL only &middot; Comm Type: RF only</span>
+  </div>
+
+  <div class="section-label">01 &nbsp;Meter master</div>
+  <div class="cards">
+    <div class="card" data-card="warehouse">
+      <div class="card-top">
+        <div class="card-title">Warehouse detailed report</div>
+        <div class="card-tag">.csv</div>
+      </div>
+      <div class="card-desc">Meter universe. Filtered to Manufacturer = KIMBAL and Meter Communication Type = RF for the selected DG.</div>
+      <div class="card-file">
+        <label class="drop" for="f-warehouse">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+          <span>Choose file&hellip;</span>
+        </label>
+        <input type="file" id="f-warehouse" accept=".csv">
+        <div class="filename" id="fn-warehouse"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">02 &nbsp;Consumer detail lookups &middot; joined by Consumer No</div>
+  <div class="cards">
+    <div class="card" data-card="mi">
+      <div class="card-top"><div class="card-title">Meter Installation report</div><div class="card-tag">.csv</div></div>
+      <div class="card-desc">Used for Installation Status = <em>Installed / O&amp;M / DT</em>.</div>
+      <div class="card-file">
+        <label class="drop" for="f-mi"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg><span>Choose file&hellip;</span></label>
+        <input type="file" id="f-mi" accept=".csv">
+        <div class="filename" id="fn-mi"></div>
+      </div>
+    </div>
+    <div class="card" data-card="nsc">
+      <div class="card-top"><div class="card-title">New Service Connection report</div><div class="card-tag">.csv</div></div>
+      <div class="card-desc">Used for Installation Status containing <em>NSC</em>.</div>
+      <div class="card-file">
+        <label class="drop" for="f-nsc"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg><span>Choose file&hellip;</span></label>
+        <input type="file" id="f-nsc" accept=".csv">
+        <div class="filename" id="fn-nsc"></div>
+      </div>
+    </div>
+    <div class="card" data-card="merged">
+      <div class="card-top"><div class="card-title">Merged CI-MI report</div><div class="card-tag">.csv</div></div>
+      <div class="card-desc">Used for Installation Status containing <em>Mergecimi</em>.</div>
+      <div class="card-file">
+        <label class="drop" for="f-merged"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg><span>Choose file&hellip;</span></label>
+        <input type="file" id="f-merged" accept=".csv">
+        <div class="filename" id="fn-merged"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">03 &nbsp;Comm status source</div>
+  <div class="cards">
+    <div class="card" data-card="routing">
+      <div class="card-top"><div class="card-title">Routing export</div><div class="card-tag">.zip</div></div>
+      <div class="card-desc">Gateway ID, Hop Count, Sink ID, Communicated At, Source Endpoint per meter. Non-Comm = 3+ days since Communicated At.</div>
+      <div class="card-file">
+        <label class="drop" for="f-routing"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg><span>Choose file&hellip;</span></label>
+        <input type="file" id="f-routing" accept=".zip">
+        <div class="filename" id="fn-routing"></div>
+      </div>
+    </div>
+    <div class="card" data-card="dp">
+      <div class="card-top"><div class="card-title">Daily Profile export</div><div class="card-tag">.zip</div></div>
+      <div class="card-desc">Meters that sent a daily profile → DP Received? column. If in DP, Comm Status = Communicating.</div>
+      <div class="card-file">
+        <label class="drop" for="f-dp"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg><span>Choose file&hellip;</span></label>
+        <input type="file" id="f-dp" accept=".zip">
+        <div class="filename" id="fn-dp"></div>
+      </div>
+    </div>
+    <div class="card" data-card="nameplate">
+      <div class="card-top"><div class="card-title">Nameplate export</div><div class="card-tag">.zip</div></div>
+      <div class="card-desc">NodeId + First Communicated At per meter. Not in this file = no NodeId ever assigned = Never Comm, overriding everything else.</div>
+      <div class="card-file">
+        <label class="drop" for="f-nameplate"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg><span>Choose file&hellip;</span></label>
+        <input type="file" id="f-nameplate" accept=".zip">
+        <div class="filename" id="fn-nameplate"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>Sheet reference date</label>
+      <input type="date" id="refDate">
+    </div>
+    <button class="go-btn" id="goBtn">Generate Comm Sheet</button>
+  </div>
+
+  <div class="log-panel" id="logPanel"></div>
+
+  <div class="results" id="results">
+    <div class="section-label">Result</div>
+    <div class="stat-row">
+      <div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">Total meters</div></div>
+      <div class="stat comm"><div class="num" id="statComm">0</div><div class="lbl">Communicating</div></div>
+      <div class="stat noncomm"><div class="num" id="statNonComm">0</div><div class="lbl">Non-Comm</div></div>
+      <div class="stat never"><div class="num" id="statNever">0</div><div class="lbl">Never Comm</div></div>
+    </div>
+    <button class="download-btn" id="downloadBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+      Download Comm Sheet (.xlsx)
+    </button>
+    <p class="note">Consumer detail coverage depends on how many Consumer Nos in each Installation Status bucket exist in the matching lookup file — rows without a match keep Circle/Feeder/Consumer/Address blank rather than guessing.</p>
+  </div>
+
+</div>
+
+<script>
+// ---------- config ----------
+const DG_CONFIG = {
+  dg1: { label:'DG-1', prefixes:['DSMSS'], meta:'Manufacturer: KIMBAL only · Comm Type: RF only' },
+  dg2: { label:'DG-2', prefixes:['DSRKI','DTRKI','DTCKI','DCCKI'], meta:'Manufacturer: KIMBAL only · Comm Type: RF only' }
+};
+let currentDG = 'dg1';
+
+document.getElementById('dgToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-dg]');
+  if(!btn) return;
+  document.querySelectorAll('#dgToggle button[data-dg]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentDG = btn.dataset.dg;
+  document.getElementById('dgMeta').textContent = DG_CONFIG[currentDG].meta;
+});
+
+document.getElementById('refDate').valueAsDate = new Date();
+
+// ---------- file input wiring ----------
+const files = {}; // key -> File
+['warehouse','mi','nsc','merged','routing','dp','nameplate'].forEach(key=>{
+  const input = document.getElementById('f-'+key);
+  input.addEventListener('change', ()=>{
+    if(input.files[0]){
+      files[key] = input.files[0];
+      document.getElementById('fn-'+key).textContent = input.files[0].name + '  ·  ' + (input.files[0].size/1048576).toFixed(1)+' MB';
+      document.querySelector(`.card[data-card="${key}"]`).classList.add('filled');
+    }
+  });
+});
+
+// ---------- log ----------
+const logPanel = document.getElementById('logPanel');
+function log(msg, cls){
+  logPanel.classList.add('visible');
+  const line = document.createElement('div');
+  line.className = 'log-line' + (cls? ' '+cls : '');
+  const t = new Date().toLocaleTimeString();
+  line.innerHTML = `<span class="t">${t}</span><span class="msg"></span>`;
+  line.querySelector('.msg').textContent = msg;
+  logPanel.appendChild(line);
+  logPanel.scrollTop = logPanel.scrollHeight;
+}
+
+// ---------- helpers ----------
+function getRowValue(row, candidates){
+  // case-insensitive, whitespace-tolerant lookup across a row object
+  if(!row._lc){
+    const map = {};
+    for(const k in row){
+      const clean = k.replace(/^\uFEFF/,'').trim().toLowerCase();
+      map[clean] = row[k];
+    }
+    Object.defineProperty(row,'_lc',{value:map, enumerable:false});
+  }
+  for(const c of candidates){
+    const v = row._lc[c.trim().toLowerCase()];
+    if(v !== undefined && v !== null && v !== '') return v;
+  }
+  return '';
+}
+
+function normId(v){
+  if(v===undefined || v===null) return '';
+  let s = String(v).trim();
+  s = s.replace(/\.0+$/,''); // CSV/Excel sometimes coerces numeric IDs to floats like "43733122089.0"
+  return s;
+}
+function normSerial(v){
+  return String(v||'').trim().toUpperCase();
+}
+function pad2(n){ return String(n).padStart(2,'0'); }
+function fmtDate(d){
+  if(!d) return '';
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if(isNaN(dt)) return '';
+  return `${pad2(dt.getDate())}-${pad2(dt.getMonth()+1)}-${dt.getFullYear()}`;
+}
+function fmtDateTime(d){
+  if(!d) return '';
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if(isNaN(dt)) return '';
+  return `${fmtDate(dt)} ${pad2(dt.getHours())}:${pad2(dt.getMinutes())}:${pad2(dt.getSeconds())}`;
+}
+function toDateSafe(v){
+  if(!v) return null;
+  if(v instanceof Date) return v;
+  const dt = new Date(v);
+  return isNaN(dt) ? null : dt;
+}
+
+// Routing zip "Communicated At" comes as text like "20-07-2026 20:25:56" (DD-MM-YYYY HH:MM:SS).
+// The plain Date constructor does not reliably parse this format across browsers, so parse it explicitly.
+function parseCommunicatedAt(v){
+  if(!v) return null;
+  if(v instanceof Date) return isNaN(v) ? null : v;
+  const s = String(v).trim();
+  let m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})[ T](\d{1,2}):(\d{2}):(\d{2})$/);
+  if(m){
+    const [, dd, mo, yyyy, hh, mi, ss] = m;
+    return new Date(Number(yyyy), Number(mo)-1, Number(dd), Number(hh), Number(mi), Number(ss));
+  }
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T](\d{1,2}):(\d{2}):(\d{2})$/);
+  if(m){
+    const [, dd, mo, yyyy, hh, mi, ss] = m;
+    return new Date(Number(yyyy), Number(mo)-1, Number(dd), Number(hh), Number(mi), Number(ss));
+  }
+  // fall back to native parsing (handles ISO strings, real Date-typed cells, etc.)
+  const dt = new Date(s);
+  return isNaN(dt) ? null : dt;
+}
+
+// ---------- CSV streaming ----------
+function streamCSV(file, onRow){
+  return new Promise((resolve,reject)=>{
+    let count = 0;
+    Papa.parse(file, {
+      header:true,
+      skipEmptyLines:true,
+      dynamicTyping:false,
+      chunkSize: 1024*1024*8,
+      step: (res)=>{ count++; onRow(res.data); },
+      complete: ()=> resolve(count),
+      error: (err)=> reject(err)
+    });
+  });
+}
+
+// ---------- Warehouse (meter universe) ----------
+async function parseWarehouse(file, prefixes){
+  const universe = [];
+  const total = await streamCSV(file, (row)=>{
+    const serial = String(getRowValue(row,['Meter Serial No'])).trim().toUpperCase();
+    if(!serial) return;
+    if(!prefixes.some(p=>serial.startsWith(p))) return;
+    const manufacturer = String(getRowValue(row,['Manufacturer'])).trim().toUpperCase();
+    if(manufacturer !== 'KIMBAL') return;
+    const commType = String(getRowValue(row,['Meter Communication Type'])).trim().toUpperCase();
+    if(commType !== 'RF') return;
+    universe.push({
+      serial,
+      phase: getRowValue(row,['Phase']),
+      manufacturer: getRowValue(row,['Manufacturer']),
+      instStatus: getRowValue(row,['Installation Status']),
+      instDate: toDateSafe(getRowValue(row,['Installation date','Installation Date'])),
+      consumerNo: normId(getRowValue(row,['Consumer No','Consumer Number'])),
+      division: getRowValue(row,['Division']),
+      subDivision: getRowValue(row,['Installed Sub Division'])
+    });
+  });
+  log(`Warehouse: scanned ${total.toLocaleString()} rows → ${universe.length.toLocaleString()} meters match this DG + KIMBAL + RF`);
+  return universe;
+}
+
+// ---------- Detail lookup files ----------
+async function parseDetailCSV(file, feederKeys, serialKeys){
+  const byConsumer = new Map();
+  const bySerial = new Map();
+  if(!file) return {byConsumer, bySerial};
+  const total = await streamCSV(file, (row)=>{
+    const consumerNo = normId(getRowValue(row,['Consumer Number','Consumer No']));
+    const meterSerial = normSerial(getRowValue(row, serialKeys));
+    const nodeIdKey = meterSerial ? String(parseInt((meterSerial.match(/(\d+)$/)||[])[1]||'',10)) : '';
+    if(!consumerNo && !meterSerial) return;
+    const detail = {
+      circle: getRowValue(row,['Circle Name']),
+      feeder: getRowValue(row,feederKeys),
+      consumerName: getRowValue(row,['Consumer Name','Consumer name']),
+      address: getRowValue(row,['Address','address']),
+      mobile: getRowValue(row,['Mobile Number']),
+      lat: getRowValue(row,['Latitude']),
+      lng: getRowValue(row,['Longitude'])
+    };
+    if(consumerNo && !byConsumer.has(consumerNo)) byConsumer.set(consumerNo, detail);
+    if(meterSerial && !bySerial.has(meterSerial)) bySerial.set(meterSerial, detail);
+    if(nodeIdKey && nodeIdKey!=='NaN' && !bySerial.has(nodeIdKey)) bySerial.set(nodeIdKey, detail);
+  });
+  log(`Detail file: scanned ${total.toLocaleString()} rows → ${byConsumer.size.toLocaleString()} by Consumer No, ${bySerial.size.toLocaleString()} by Meter/Node ID`);
+  return {byConsumer, bySerial};
+}
+
+function orderMapsByStatus(instStatus, miIdx, nscIdx, mergedIdx){
+  const s = String(instStatus||'').toLowerCase();
+  if(s.includes('nsc')) return [nscIdx, miIdx, mergedIdx];
+  if(s.includes('mergecimi')) return [mergedIdx, miIdx, nscIdx];
+  return [miIdx, nscIdx, mergedIdx];
+}
+
+// Cascade: primary file by Consumer No -> other files by Consumer No -> any file by Meter Serial -> any file by NodeId.
+// Only returns {} (blank columns) if the identifier truly isn't in any of the three source files.
+function lookupDetail(consumerNo, meterSerial, nodeId, instStatus, miIdx, nscIdx, mergedIdx){
+  const order = orderMapsByStatus(instStatus, miIdx, nscIdx, mergedIdx);
+  const cn = normId(consumerNo);
+  const ms = normSerial(meterSerial);
+  const nk = String(nodeId);
+  for(const idx of order){
+    if(cn && idx.byConsumer.has(cn)) return idx.byConsumer.get(cn);
+  }
+  for(const idx of order){
+    if(ms && idx.bySerial.has(ms)) return idx.bySerial.get(ms);
+  }
+  for(const idx of order){
+    if(nk && idx.bySerial.has(nk)) return idx.bySerial.get(nk);
+  }
+  return {};
+}
+
+// ---------- Zip readers ----------
+async function readXlsxRowsFromBuffer(buf){
+  const wb = XLSX.read(buf, {type:'array', cellDates:true});
+  const out = [];
+  for(const name of wb.SheetNames){
+    const ws = wb.Sheets[name];
+    const rows = XLSX.utils.sheet_to_json(ws, {defval:null, raw:true});
+    for(const r of rows) out.push(r);
+  }
+  return out;
+}
+
+async function walkZipForXlsx(file, onRows, log){
+  const outer = await JSZip.loadAsync(file);
+  const entries = Object.values(outer.files).filter(f=>!f.dir);
+  let xlsxCount = 0, zipCount = 0;
+  for(const entry of entries){
+    const lower = entry.name.toLowerCase();
+    if(lower.endsWith('.zip')){
+      zipCount++;
+      const innerBuf = await entry.async('arraybuffer');
+      const innerZip = await JSZip.loadAsync(innerBuf);
+      const innerEntries = Object.values(innerZip.files).filter(f=>!f.dir);
+      for(const ie of innerEntries){
+        if(ie.name.toLowerCase().endsWith('.xlsx')){
+          xlsxCount++;
+          const xbuf = await ie.async('arraybuffer');
+          const rows = await readXlsxRowsFromBuffer(xbuf);
+          onRows(rows);
+        } else if(ie.name.toLowerCase().endsWith('.zip')){
+          // one more level, just in case
+          const deepBuf = await ie.async('arraybuffer');
+          const deepZip = await JSZip.loadAsync(deepBuf);
+          for(const de of Object.values(deepZip.files)){
+            if(!de.dir && de.name.toLowerCase().endsWith('.xlsx')){
+              xlsxCount++;
+              const xbuf = await de.async('arraybuffer');
+              const rows = await readXlsxRowsFromBuffer(xbuf);
+              onRows(rows);
+            }
+          }
+        }
+      }
+    } else if(lower.endsWith('.xlsx')){
+      xlsxCount++;
+      const buf = await entry.async('arraybuffer');
+      const rows = await readXlsxRowsFromBuffer(buf);
+      onRows(rows);
+    }
+  }
+  return {xlsxCount, zipCount};
+}
+
+async function parseRoutingZip(file){
+  const routingMap = new Map();
+  const stats = await walkZipForXlsx(file, (rows)=>{
+    for(const r of rows){
+      const meter = String(getRowValue(r,['Meter','Meter Number','MeterNumber'])).trim().toUpperCase();
+      if(!meter) continue;
+      routingMap.set(meter, {
+        gateway: getRowValue(r,['Gateway ID','GatewayID']),
+        hop: getRowValue(r,['Hop Count','HopCount']),
+        sink: getRowValue(r,['Sink ID','SinkID']),
+        commAt: parseCommunicatedAt(getRowValue(r,['Communicated At','CommunicatedAt'])),
+        srcEP: getRowValue(r,['Source Endpoint','SourceEndpoint'])
+      });
+    }
+  });
+  log(`Routing export: read ${stats.xlsxCount} workbook(s) → ${routingMap.size.toLocaleString()} meters with routing data`);
+  return routingMap;
+}
+
+async function parseDPZip(file){
+  const dpSet = new Set();
+  const stats = await walkZipForXlsx(file, (rows)=>{
+    for(const r of rows){
+      const meter = String(getRowValue(r,['MeterNumber','Meter Number','Meter'])).trim().toUpperCase();
+      if(meter) dpSet.add(meter);
+    }
+  });
+  log(`Daily Profile export: read ${stats.xlsxCount} workbook(s) → ${dpSet.size.toLocaleString()} meters sent a DP`);
+  return dpSet;
+}
+
+async function parseNameplateZip(file){
+  const nameplateMap = new Map();
+  const stats = await walkZipForXlsx(file, (rows)=>{
+    for(const r of rows){
+      const meter = normSerial(getRowValue(r,['Meter Number','MeterNumber','Meter']));
+      if(!meter) continue;
+      nameplateMap.set(meter, {
+        nodeId: getRowValue(r,['NodeId','Node Id']),
+        firstCommAt: parseCommunicatedAt(getRowValue(r,['First Communicated At','FirstCommunicatedAt']))
+      });
+    }
+  });
+  log(`Nameplate export: read ${stats.xlsxCount} workbook(s) → ${nameplateMap.size.toLocaleString()} meters have a NodeId`);
+  return nameplateMap;
+}
+
+// ---------- Build sheet ----------
+const HEADERS = ['Meter Serial No','Phase','Manufacturer','Installation Status','Installation date','Consumer No','Division','Installed Sub Division','Circle Name','Feeder Name(Master)','Consumer name','address','Mobile Number','Latitude','Longitude','NodeId','Gateway ID','Hop Count','Sink ID','Communicated At','Source Endpoint','Comm Status','DP Received?','Date','Ageing'];
+
+let lastOutputRows = null;
+
+async function generate(){
+  const goBtn = document.getElementById('goBtn');
+  const required = ['warehouse','mi','nsc','merged','routing','dp','nameplate'];
+  const missing = required.filter(k=>!files[k]);
+  if(missing.length){
+    log(`Missing file(s): ${missing.join(', ')}`, 'err');
+    return;
+  }
+  const refDateInput = document.getElementById('refDate').value;
+  if(!refDateInput){ log('Pick a sheet reference date first.', 'err'); return; }
+  const refDate = new Date(refDateInput + 'T23:59:59');
+
+  goBtn.disabled = true;
+  document.getElementById('results').classList.remove('visible');
+  logPanel.innerHTML = '';
+  const startTime = performance.now();
+
+  try{
+    log(`Building ${DG_CONFIG[currentDG].label} Comm Sheet, reference date ${fmtDate(refDate)}...`);
+
+    const universe = await parseWarehouse(files.warehouse, DG_CONFIG[currentDG].prefixes);
+    const miIdx = await parseDetailCSV(files.mi, ['Feeder Name(Master)'], ['New Meter Number Scan']);
+    const nscIdx = await parseDetailCSV(files.nsc, ['Feeder Name(From Field)','Feeder Name(Master)'], ['New Meter QR Code','New Meter QR Code ']);
+    const mergedIdx = await parseDetailCSV(files.merged, ['Feeder Name(Master)'], ['New Meter QR Code','New Meter QR Code ']);
+    const routingMap = await parseRoutingZip(files.routing);
+    const dpSet = await parseDPZip(files.dp);
+    const nameplateMap = await parseNameplateZip(files.nameplate);
+
+    log('Joining and computing Comm Status...');
+    const outRows = [];
+    const counts = {Communicating:0, 'Non-Comm':0, 'Never Comm':0};
+
+    for(const m of universe){
+      const detail = lookupDetail(m.consumerNo, m.serial, '', m.instStatus, miIdx, nscIdx, mergedIdx);
+
+      const nameplate = nameplateMap.get(m.serial);
+      const routing = routingMap.get(m.serial);
+      const inDP = dpSet.has(m.serial);
+
+      let commStatus, communicatedAt = null, gateway='', hop='', sink='', srcEP='', nodeId='';
+
+      if(!nameplate){
+        // No NodeId ever assigned in the nameplate export -> definitively never communicated.
+        commStatus = 'Never Comm';
+      } else {
+        nodeId = nameplate.nodeId || '';
+        if(routing){
+          gateway = routing.gateway; hop = routing.hop; sink = routing.sink; srcEP = routing.srcEP;
+        }
+        // Prefer the routing file's live timestamp; if this meter has no routing entry (or no
+        // Communicated At on it), fall back to the nameplate's First Communicated At.
+        communicatedAt = (routing && routing.commAt) ? routing.commAt : nameplate.firstCommAt;
+
+        if(inDP){
+          commStatus = 'Communicating';
+        } else if(communicatedAt){
+          const hoursSince = (refDate - communicatedAt) / 3600000;
+          commStatus = hoursSince >= 72 ? 'Non-Comm' : 'Communicating';
+        } else {
+          commStatus = 'Non-Comm';
+        }
+      }
+      counts[commStatus] = (counts[commStatus]||0) + 1;
+
+      const ageing = m.instDate ? Math.round((refDate - m.instDate) / 86400000) : '';
+
+      outRows.push([
+        m.serial, m.phase, m.manufacturer, m.instStatus, fmtDate(m.instDate),
+        m.consumerNo, m.division, m.subDivision,
+        detail.circle||'', detail.feeder||'', detail.consumerName||'', detail.address||'',
+        detail.mobile||'', detail.lat||'', detail.lng||'',
+        nodeId, gateway||'', hop||'', sink||'', fmtDateTime(communicatedAt), srcEP||'',
+        commStatus, inDP?'YES':'NO', fmtDate(refDate), ageing
+      ]);
+    }
+
+    lastOutputRows = outRows;
+    const elapsed = ((performance.now()-startTime)/1000).toFixed(1);
+    log(`Done in ${elapsed}s — ${outRows.length.toLocaleString()} rows ready.`, 'ok');
+
+    document.getElementById('statTotal').textContent = outRows.length.toLocaleString();
+    document.getElementById('statComm').textContent = counts.Communicating.toLocaleString();
+    document.getElementById('statNonComm').textContent = counts['Non-Comm'].toLocaleString();
+    document.getElementById('statNever').textContent = counts['Never Comm'].toLocaleString();
+    document.getElementById('results').classList.add('visible');
+
+  } catch(err){
+    console.error(err);
+    log('Error: ' + err.message, 'err');
+  } finally {
+    goBtn.disabled = false;
+  }
+}
+
+document.getElementById('goBtn').addEventListener('click', generate);
+
+document.getElementById('downloadBtn').addEventListener('click', ()=>{
+  if(!lastOutputRows) return;
+  const ws = XLSX.utils.aoa_to_sheet([HEADERS, ...lastOutputRows]);
+  const wb = XLSX.utils.book_new();
+  const sheetName = `${DG_CONFIG[currentDG].label} ${fmtDate(new Date(document.getElementById('refDate').value+'T00:00:00'))} Comm Sheet`.slice(0,31);
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, `${DG_CONFIG[currentDG].label}_Comm_Sheet_${document.getElementById('refDate').value}.xlsx`);
+});
+</script>
+</body>
+</html>
